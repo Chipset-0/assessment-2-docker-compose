@@ -1,39 +1,38 @@
 services:
-
-  # DinD: a separate Docker engine that builds and runs pipeline containers.
-  # The service name "docker" is the hostname Jenkins connects to (it matches the TLS certificate).
+  #The Docker Service
   docker:
+    #The image for the dind implementation is docker:dind
     image: docker:dind
     container_name: jenkins_dind
-    privileged: true                        # required to run a nested Docker daemon
+    privileged: true                        # Container needs to be privileged to run docker commands
     environment:
       - DOCKER_TLS_CERTDIR=/certs           # enables TLS on port 2376 and generates certificates
     volumes:
-      - jenkins_docker_certs:/certs/client  # TLS client certs, shared with Jenkins
+      - jenkins_docker_certs:/certs/client  # TLS certs, contained within shared volume
       - jenkins_home:/var/jenkins_home      # lets pipeline containers mount the Jenkins workspace
-      - dind-data:/var/lib/docker           # persists images and build artefacts
+      - dind-data:/var/lib/docker           # Persists docker data within a volume
     ports:
-      - "127.0.0.1:8081:8081"               # port for the deployed app, localhost only
+      - "127.0.0.1:8081:8081"               # Maps the port 8081 on the localhost to the container's 8081 port
     restart: unless-stopped
 
-  # Jenkins: the CI/CD server, built from the Dockerfile in this folder
-  # (stock Jenkins LTS plus the docker CLI).
+  # Jenkins Service
   jenkins:
     build: .
     container_name: jenkins
-    user: "1000:1000"                       # run as the non-root jenkins user
+    user: "1000:1000"                       # Ensures the user is not root, it is specified within the actual jenkins image but this is more
+                                            # Transparent and prevents unexpected changes
     environment:
-      - DOCKER_HOST=tcp://docker:2376       # send Docker commands to the DinD service over TLS
-      - DOCKER_CERT_PATH=/certs/client      # where the TLS client certs are mounted
-      - DOCKER_TLS_VERIFY=1                 # require verified TLS
+      - DOCKER_HOST=tcp://docker:2376       # Send docker commands to the docker service using tcp
+      - DOCKER_CERT_PATH=/certs/client      # Path to docker TLS certs
+      - DOCKER_TLS_VERIFY=1                 # Use encrypted connection over 2376 rather than 2375
     ports:
       - "127.0.0.1:8080:8080"               # Jenkins web UI, reachable from this machine only
     volumes:
-      - jenkins_home:/var/jenkins_home      # persists jobs, plugins, users and credentials
-      - jenkins_docker_certs:/certs/client:ro  # TLS client certs from DinD, read-only
+      - jenkins_home:/var/jenkins_home      # Persists Jenkins Data
+      - jenkins_docker_certs:/certs/client:ro  # Provides read access to certs
     restart: unless-stopped
 
-# Named volumes managed by Docker
+# Named docker volumes
 volumes:
   jenkins_home:
   jenkins_docker_certs:
